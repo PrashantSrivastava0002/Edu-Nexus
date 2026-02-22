@@ -44,6 +44,10 @@ export const register = async (req, res) => {
                 xp: user.xp,
                 level: user.level,
                 streak: user.streak,
+                classLevel: user.classLevel,
+                stream: user.stream,
+                school: user.school,
+                age: user.age,
                 badges: user.badges
             },
             token
@@ -81,7 +85,7 @@ export const login = async (req, res) => {
         }
 
         // Check if password matches
-        const isMatch = await user.matchPassword(password);
+        const isMatch = await user.comparePassword(password);
         if (!isMatch) {
             return res.status(401).json({
                 success: false,
@@ -92,14 +96,14 @@ export const login = async (req, res) => {
         // Update streak logic
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         if (user.lastStreamDate) {
             const lastLogin = new Date(user.lastStreamDate);
             lastLogin.setHours(0, 0, 0, 0);
-            
+
             const diffTime = today - lastLogin;
             const diffDays = diffTime / (1000 * 60 * 60 * 24);
-            
+
             if (diffDays === 1) {
                 user.streak += 1;
             } else if (diffDays > 1) {
@@ -127,6 +131,9 @@ export const login = async (req, res) => {
                 level: user.level,
                 streak: user.streak,
                 classLevel: user.classLevel,
+                stream: user.stream,
+                school: user.school,
+                age: user.age,
                 badges: user.badges,
                 assignedSubjects: user.assignedSubjects
             },
@@ -159,6 +166,9 @@ export const getMe = async (req, res) => {
                 level: user.level,
                 streak: user.streak,
                 classLevel: user.classLevel,
+                stream: user.stream,
+                school: user.school,
+                age: user.age,
                 badges: user.badges,
                 assignedSubjects: user.assignedSubjects
             }
@@ -170,57 +180,3 @@ export const getMe = async (req, res) => {
         });
     }
 };
-                user.streak = 1;
-            }
-        } else {
-            user.streak = 1;
-        }
-        
-        user.lastLoginDate = new Date();
-        await user.save();
-
-        // Generate token
-        const token = generateToken(user._id);
-
-        res.json({
-            success: true,
-            data: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                xp: user.xp,
-                level: user.level,
-                streak: user.streak,
-                badges: user.badges,
-                completedChapters: user.completedChapters
-            },
-            token
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-
-// @desc    Get current logged in user
-// @route   GET /api/auth/me
-// @access  Private
-export const getMe = async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id);
-        
-        res.json({
-            success: true,
-            data: user
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-

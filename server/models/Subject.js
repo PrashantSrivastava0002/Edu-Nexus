@@ -19,9 +19,13 @@ const subjectSchema = new mongoose.Schema({
         type: String,
         default: '📚'
     },
-    class: {
+    classes: [{
         type: String,
-        default: 'Class 11'
+        default: '11'
+    }],
+    stream: {
+        type: String, // 'Science', 'Commerce', 'Arts', or null for lower classes
+        default: null
     },
     isActive: {
         type: Boolean,

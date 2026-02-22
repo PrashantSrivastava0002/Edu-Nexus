@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { userAPI, subjectAPI } from '../../services/api';
+import { userAPI, subjectAPI, adminAPI } from '../../services/api';
+// eslint-disable-next-line no-unused-vars
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users,
     GraduationCap,
@@ -9,7 +11,10 @@ import {
     Plus,
     Search,
     BarChart2,
-    X
+    Activity, // Import Activity icon
+    X,
+    Trophy,
+    Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +24,12 @@ const AdminDashboard = () => {
     const [teachers, setTeachers] = useState([]);
     const [students, setStudents] = useState([]);
     const [subjects, setSubjects] = useState([]);
+    const [stats, setStats] = useState({
+        totalStudents: 0,
+        totalTeachers: 0,
+        totalSubjects: 0,
+        activeStudents: 0
+    });
     const [loading, setLoading] = useState(true);
 
     // Filters
@@ -28,10 +39,12 @@ const AdminDashboard = () => {
 
     // Add Teacher Form State
     const [showAddTeacher, setShowAddTeacher] = useState(false);
-    const [newTeacher, setNewTeacher] = useState({ name: '', email: '', password: 'password123' });
+    const [newTeacher, setNewTeacher] = useState({ name: '', email: '', password: 'password123', assignedSubjects: [] });
 
     // Assign Subject Modal
     const [assigningTeacher, setAssigningTeacher] = useState(null);
+    const [selectedSubjectToAdd, setSelectedSubjectToAdd] = useState('');
+    const [selectedClassToAdd, setSelectedClassToAdd] = useState('10'); // Default class
 
     // Performance Modal
     const [viewingStudent, setViewingStudent] = useState(null);
@@ -43,17 +56,19 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [teachersRes, studentsRes, subjectsRes] = await Promise.all([
+            const [teachersRes, studentsRes, subjectsRes, statsRes] = await Promise.all([
                 userAPI.getAllTeachers(),
                 userAPI.getAllStudents(),
-                subjectAPI.getAll()
+                subjectAPI.getAll(),
+                adminAPI.getStats()
             ]);
             setTeachers(teachersRes.data.data);
             setStudents(studentsRes.data.data);
             setSubjects(subjectsRes.data.data);
-        } catch (error) {
+            setStats(statsRes.data.data);
+        } catch {
             toast.error('Failed to load dashboard data');
-            console.error(error);
+            // console.error(error); // Removed as per instruction to remove 'error' from catch
         } finally {
             setLoading(false);
         }
@@ -65,9 +80,9 @@ const AdminDashboard = () => {
             await userAPI.createTeacher(newTeacher);
             toast.success('Teacher created successfully');
             setShowAddTeacher(false);
-            setNewTeacher({ name: '', email: '', password: 'password123' });
+            setNewTeacher({ name: '', email: '', password: 'password123', assignedSubjects: [] });
             fetchData();
-        } catch (error) {
+        } catch {
             toast.error('Failed to create teacher');
         }
     };
@@ -78,7 +93,7 @@ const AdminDashboard = () => {
             await userAPI.deleteUser(id);
             toast.success('User deleted');
             fetchData();
-        } catch (error) {
+        } catch {
             toast.error('Failed to delete user');
         }
     };
@@ -93,7 +108,7 @@ const AdminDashboard = () => {
                 toast.success('Subject assigned');
             }
             fetchData(); // Refresh to show updated assignments
-        } catch (error) {
+        } catch {
             toast.error('Failed to update assignment');
         }
     };
@@ -101,8 +116,8 @@ const AdminDashboard = () => {
     const getFilteredStudents = () => {
         return students.filter(student => {
             const matchesClass = filterClass ? (student.classLevel && student.classLevel.toString() === filterClass.toString()) : true;
-            const matchesSearch = student.name.toLowerCase().includes(filterSearch.toLowerCase()) ||
-                student.email.toLowerCase().includes(filterSearch.toLowerCase());
+            const matchesSearch = (student.name || '').toLowerCase().includes(filterSearch.toLowerCase()) ||
+                (student.email || '').toLowerCase().includes(filterSearch.toLowerCase());
             // Note: Subject filter currently just checks if the student is in a class that would take this subject, 
             // since we don't track individual subject enrollments in this simple mock.
             // But we can filter by the implicit class of the subject if needed.
@@ -126,174 +141,276 @@ const AdminDashboard = () => {
         });
     };
 
-    if (loading) return <div className="flex items-center justify-center h-screen">Loading Admin Console...</div>;
+    if (loading) return <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-display font-medium text-xl">Loading Admin Console...</div>;
 
     return (
-        <div className="min-h-screen bg-slate-50 p-6 space-y-8">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 space-y-8 font-quicksand transition-colors duration-300">
             {/* Header */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-3">
-                    <div className="bg-indigo-600 p-2 rounded-lg">
-                        <Users className="text-white w-6 h-6" />
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="bg-[#6366f1] p-3 rounded-2xl shadow-inner border-2 border-[#4f46e5]">
+                        <Users className="text-white w-8 h-8 drop-shadow-sm" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900">Admin Portal</h1>
-                        <p className="text-sm text-slate-500">Manage your institution</p>
+                        <h1 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-wide">Admin Portal</h1>
+                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Manage Institution</p>
                     </div>
                 </div>
-                <button onClick={logout} className="text-red-600 font-medium hover:bg-red-50 px-4 py-2 rounded-lg transition-colors">
-                    Logout
+                <button onClick={logout} className="text-[#ef4444] font-bold hover:bg-[#ef4444]/10 dark:hover:bg-[#ef4444]/20 px-6 py-3 rounded-xl transition-colors border-2 border-transparent hover:border-[#ef4444]/20 flex items-center gap-2">
+                    <X className="w-5 h-5" /> Logout
                 </button>
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <h3 className="text-slate-500 font-medium text-sm">Total Students</h3>
-                    <p className="text-3xl font-bold text-slate-800 mt-2">{students.length}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow flex flex-col items-center justify-center text-center group hover:-translate-y-1 transition-transform">
+                    <h3 className="text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-widest mb-2">Total Students</h3>
+                    <p className="text-4xl font-display font-black text-slate-800 dark:text-white drop-shadow-sm group-hover:scale-110 transition-transform">{stats.totalStudents}</p>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <h3 className="text-slate-500 font-medium text-sm">Total Teachers</h3>
-                    <p className="text-3xl font-bold text-indigo-600 mt-2">{teachers.length}</p>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow flex flex-col items-center justify-center text-center group hover:-translate-y-1 transition-transform">
+                    <h3 className="text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-widest mb-2">Total Teachers</h3>
+                    <p className="text-4xl font-display font-black text-[#6366f1] drop-shadow-sm group-hover:scale-110 transition-transform">{stats.totalTeachers}</p>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <h3 className="text-slate-500 font-medium text-sm">Active Subjects</h3>
-                    <p className="text-3xl font-bold text-emerald-600 mt-2">{subjects.length}</p>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow flex flex-col items-center justify-center text-center group hover:-translate-y-1 transition-transform">
+                    <h3 className="text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-widest mb-2">Active Subjects</h3>
+                    <p className="text-4xl font-display font-black text-[#10b981] drop-shadow-sm group-hover:scale-110 transition-transform">{stats.totalSubjects}</p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow flex flex-col items-center justify-center text-center group hover:-translate-y-1 transition-transform">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Activity className="w-4 h-4 text-[#f97316] animate-pulse" />
+                        <h3 className="text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-widest">Active Students</h3>
+                    </div>
+                    <p className="text-4xl font-display font-black text-[#f97316] drop-shadow-sm group-hover:scale-110 transition-transform">{stats.activeStudents || 0}</p>
                 </div>
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[500px]">
+            <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border-[3px] border-slate-200 dark:border-slate-700 cartoon-border pop-shadow min-h-[500px] overflow-hidden flex flex-col">
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200">
+                <div className="flex border-b-[3px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                     <button
                         onClick={() => setActiveTab('teachers')}
-                        className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${activeTab === 'teachers'
-                            ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50'
-                            : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                        className={`flex-1 flex items-center justify-center gap-3 px-6 py-5 font-bold text-lg transition-colors border-r-[3px] border-slate-200 dark:border-slate-700 ${activeTab === 'teachers'
+                            ? 'text-[#6366f1] dark:text-[#818cf8] bg-white dark:bg-slate-800 relative after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-[#6366f1]'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                             }`}
                     >
-                        <Users className="w-4 h-4" />
-                        Manage Teachers
+                        <Users className={activeTab === 'teachers' ? 'animate-bounce' : ''} />
+                        Directory
                     </button>
                     <button
                         onClick={() => setActiveTab('students')}
-                        className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${activeTab === 'students'
-                            ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50'
-                            : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                        className={`flex-1 flex items-center justify-center gap-3 px-6 py-5 font-bold text-lg transition-colors ${activeTab === 'students'
+                            ? 'text-[#6366f1] dark:text-[#818cf8] bg-white dark:bg-slate-800 relative after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-[#6366f1]'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                             }`}
                     >
-                        <GraduationCap className="w-4 h-4" />
-                        Student Performance
+                        <GraduationCap className={activeTab === 'students' ? 'animate-bounce' : ''} />
+                        Performance
                     </button>
                 </div>
 
-                <div className="p-6">
+                <div className="p-6 sm:p-8 flex-1">
                     {/* TEACHERS TAB */}
                     {activeTab === 'teachers' && (
                         <div className="space-y-6">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-lg font-bold text-slate-800">Teacher Directory</h2>
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div>
+                                    <h2 className="text-2xl font-display font-black text-slate-800 dark:text-white">Teacher Directory</h2>
+                                    <p className="text-slate-500 dark:text-slate-400 font-medium">Manage educators and their assignments</p>
+                                </div>
                                 <button
                                     onClick={() => setShowAddTeacher(true)}
-                                    className="btn-primary flex items-center gap-2"
+                                    className="bg-[#14b8a6] hover:bg-[#0d9488] text-white px-6 py-3 rounded-xl font-bold border-b-4 border-[#0f766e] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-sm"
                                 >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-5 h-5" />
                                     Add Teacher
                                 </button>
                             </div>
 
                             {showAddTeacher && (
-                                <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 animate-in fade-in slide-in-from-top-4">
-                                    <form onSubmit={handleCreateTeacher} className="flex gap-4 items-end">
-                                        <div className="flex-1">
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                className="w-full rounded-lg border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
-                                                value={newTeacher.name}
-                                                onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                                            />
+                                <div className="bg-slate-50 dark:bg-slate-800/80 p-6 rounded-2xl border-[3px] border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-4 cartoon-border">
+                                    <form onSubmit={handleCreateTeacher} className="space-y-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Name</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    className="w-full rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-800 dark:text-slate-100 font-medium focus:ring-0 focus:border-[#6366f1] transition-colors"
+                                                    value={newTeacher.name}
+                                                    onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Email</label>
+                                                <input
+                                                    type="email"
+                                                    required
+                                                    className="w-full rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-800 dark:text-slate-100 font-medium focus:ring-0 focus:border-[#6366f1] transition-colors"
+                                                    value={newTeacher.email}
+                                                    onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Password</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={newTeacher.password}
+                                                    onChange={(e) => setNewTeacher({ ...newTeacher, password: e.target.value })}
+                                                    className="w-full rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-800 dark:text-slate-100 font-medium focus:ring-0 focus:border-[#6366f1] transition-colors"
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                                            <input
-                                                type="email"
-                                                required
-                                                className="w-full rounded-lg border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
-                                                value={newTeacher.email}
-                                                onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                                            />
+
+                                        <div>
+                                            <div className="bg-white dark:bg-slate-900 border-[3px] border-slate-200 dark:border-slate-700 p-5 rounded-2xl">
+                                                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Assign Subjects & Classes</label>
+                                                <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                                                    <select
+                                                        className="flex-1 rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] transition-colors"
+                                                        value={selectedSubjectToAdd}
+                                                        onChange={(e) => setSelectedSubjectToAdd(e.target.value)}
+                                                    >
+                                                        <option value="">Select Subject...</option>
+                                                        {subjects.map(subject => (
+                                                            <option key={subject.id} value={subject.id}>{subject.title}</option>
+                                                        ))}
+                                                    </select>
+                                                    <select
+                                                        className="w-full sm:w-40 rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-800 dark:text-slate-100 font-bold focus:ring-0 focus:border-[#6366f1] transition-colors"
+                                                        value={selectedClassToAdd}
+                                                        onChange={(e) => setSelectedClassToAdd(e.target.value)}
+                                                    >
+                                                        {[6, 7, 8, 9, 10, 11, 12].map(cls => (
+                                                            <option key={cls} value={cls}>Class {cls}</option>
+                                                        ))}
+                                                    </select>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (selectedSubjectToAdd && selectedClassToAdd) {
+                                                                const alreadyExists = newTeacher.assignedSubjects.some(
+                                                                    s => s.subjectId === selectedSubjectToAdd && s.classLevel.toString() === selectedClassToAdd.toString()
+                                                                );
+                                                                if (!alreadyExists) {
+                                                                    setNewTeacher({
+                                                                        ...newTeacher,
+                                                                        assignedSubjects: [
+                                                                            ...newTeacher.assignedSubjects,
+                                                                            { subjectId: selectedSubjectToAdd, classLevel: selectedClassToAdd }
+                                                                        ]
+                                                                    });
+                                                                    setSelectedSubjectToAdd('');
+                                                                } else {
+                                                                    toast.error('Subject already assigned for this class');
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="bg-[#6366f1] text-white px-5 py-3 rounded-xl hover:bg-[#4f46e5] font-bold border-b-4 border-[#4338ca] active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
+                                                    >
+                                                        <Plus className="w-5 h-5" /> Add
+                                                    </button>
+                                                </div>
+
+                                                <div className="border-[3px] border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 p-3 min-h-[100px] max-h-40 overflow-y-auto space-y-2">
+                                                    {newTeacher.assignedSubjects.length === 0 ? (
+                                                        <p className="text-sm font-bold text-slate-400 dark:text-slate-500 text-center py-4">No subjects assigned yet.</p>
+                                                    ) : (
+                                                        newTeacher.assignedSubjects.map((assignment, index) => {
+                                                            const subject = subjects.find(s => s.id === assignment.subjectId);
+                                                            return (
+                                                                <div key={index} className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{subject?.title || assignment.subjectId}</span>
+                                                                        <span className="text-xs font-bold bg-[#6366f1]/10 text-[#6366f1] dark:text-[#818cf8] px-2 py-1 rounded-md border border-[#6366f1]/20">Class {assignment.classLevel}</span>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setNewTeacher({
+                                                                                ...newTeacher,
+                                                                                assignedSubjects: newTeacher.assignedSubjects.filter((_, i) => i !== index)
+                                                                            });
+                                                                        }}
+                                                                        className="text-[#ef4444] hover:bg-[#ef4444]/10 p-1.5 rounded-lg transition-colors"
+                                                                    >
+                                                                        <X className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={newTeacher.password}
-                                                onChange={(e) => setNewTeacher({ ...newTeacher, password: e.target.value })}
-                                                className="w-full rounded-lg border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button type="submit" className="btn-primary">Create</button>
+
+                                        <div className="flex gap-3 justify-end pt-2">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowAddTeacher(false)}
-                                                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg"
+                                                className="px-6 py-3 font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
                                             >
                                                 Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="bg-[#6366f1] text-white px-8 py-3 rounded-xl font-bold border-b-4 border-[#4f46e5] active:border-b-0 active:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:border-b-4 disabled:active:translate-y-0 shadow-sm"
+                                                disabled={newTeacher.assignedSubjects.length === 0}
+                                            >
+                                                Create Teacher
                                             </button>
                                         </div>
                                     </form>
                                 </div>
                             )}
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                            <div className="overflow-x-auto rounded-2xl border-[3px] border-slate-200 dark:border-slate-700 cartoon-border bg-white dark:bg-slate-800">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b-[3px] border-slate-200 dark:border-slate-700">
                                         <tr>
-                                            <th className="p-4 font-medium">Name</th>
-                                            <th className="p-4 font-medium">Email</th>
-                                            <th className="p-4 font-medium">Assigned Subjects</th>
-                                            <th className="p-4 font-medium text-right">Actions</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Name</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Email</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Assigned Subjects</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="text-sm divide-y divide-slate-100">
+                                    <tbody className="divide-y-[3px] divide-slate-100 dark:divide-slate-700/50">
                                         {teachers.map(teacher => (
-                                            <tr key={teacher.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-4 font-medium text-slate-900">{teacher.name}</td>
-                                                <td className="p-4 text-slate-600">{teacher.email}</td>
-                                                <td className="p-4">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {teacher.assignedSubjects?.length > 0 ? (
-                                                            teacher.assignedSubjects.map(sid => {
-                                                                const sub = subjects.find(s => s.id === sid);
+                                            <tr key={teacher._id || teacher.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
+                                                <td className="p-5 font-bold text-slate-900 dark:text-slate-100">{teacher.name}</td>
+                                                <td className="p-5 font-medium text-slate-500 dark:text-slate-400">{teacher.email}</td>
+                                                <td className="p-5">
+                                                    <div className="flex flex-wrap gap-2 items-center">
+                                                        {teacher.assignedSubjects && teacher.assignedSubjects.length > 0 ? (
+                                                            teacher.assignedSubjects.map((assignment, index) => {
+                                                                const subjectId = typeof assignment === 'string' ? assignment : assignment.subjectId;
+                                                                const sub = subjects.find(s => s.id === subjectId);
                                                                 return (
-                                                                    <span key={sid} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md text-xs font-medium">
-                                                                        {sub ? sub.name : sid}
+                                                                    <span key={index} className="px-3 py-1 bg-[#6366f1]/10 text-[#6366f1] dark:text-[#818cf8] rounded-lg text-xs font-bold border-2 border-[#6366f1]/20">
+                                                                        {sub ? sub.title : subjectId}
                                                                     </span>
                                                                 );
                                                             })
                                                         ) : (
-                                                            <span className="text-slate-400 italic">No subjects assigned</span>
+                                                            <span className="text-slate-400 dark:text-slate-500 italic text-sm font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">No subjects assigned</span>
                                                         )}
                                                         <button
                                                             onClick={() => setAssigningTeacher(teacher)}
-                                                            className="text-indigo-600 hover:text-indigo-800 text-xs font-medium underline ml-2"
+                                                            className="text-[#14b8a6] hover:text-[#0d9488] dark:hover:text-[#2dd4bf] text-xs font-bold underline ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
                                                         >
                                                             Manage
                                                         </button>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-5 text-right">
                                                     <button
-                                                        onClick={() => handleDeleteUser(teacher.id)}
-                                                        className="text-slate-400 hover:text-red-600 transition-colors p-2"
+                                                        onClick={() => handleDeleteUser(teacher._id || teacher.id)}
+                                                        className="text-slate-400 hover:text-white hover:bg-[#ef4444] transition-colors p-2.5 rounded-xl border-2 border-transparent hover:border-[#b91c1c] active:translate-y-1 shadow-sm"
                                                         title="Delete User"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="w-5 h-5" />
                                                     </button>
                                                 </td>
                                             </tr>
@@ -307,12 +424,15 @@ const AdminDashboard = () => {
                     {/* STUDENTS TAB */}
                     {activeTab === 'students' && (
                         <div className="space-y-6">
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                                <h2 className="text-lg font-bold text-slate-800">Student Performance</h2>
-                                <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                                <div>
+                                    <h2 className="text-2xl font-display font-black text-slate-800 dark:text-white">Student Performance</h2>
+                                    <p className="text-slate-500 dark:text-slate-400 font-medium">Track progress and engagement</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto p-2 bg-slate-50 dark:bg-slate-900 border-[3px] border-slate-200 dark:border-slate-700 rounded-2xl cartoon-border">
                                     {/* Class Filter */}
                                     <select
-                                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                        className="px-4 py-2.5 rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold focus:ring-0 focus:border-[#6366f1] transition-colors"
                                         onChange={(e) => setFilterClass(e.target.value)}
                                     >
                                         <option value="">All Classes</option>
@@ -321,76 +441,78 @@ const AdminDashboard = () => {
                                         ))}
                                     </select>
 
-                                    {/* Subject Filter (Dynamic based on available subjects) */}
+                                    {/* Subject Filter */}
                                     <select
-                                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                        className="px-4 py-2.5 rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold focus:ring-0 focus:border-[#6366f1] transition-colors"
                                         onChange={(e) => setFilterSubject(e.target.value)}
                                     >
                                         <option value="">All Subjects</option>
-                                        {/* Unique subjects from loaded subjects list */}
                                         {[...new Set(subjects.map(s => s.name))].map(name => (
                                             <option key={name} value={name}>{name}</option>
                                         ))}
                                     </select>
 
-                                    <div className="relative">
-                                        <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                                    <div className="relative flex-grow">
+                                        <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Search students..."
-                                            className="pl-9 pr-4 py-2 rounded-lg border-slate-200 focus:ring-indigo-500 focus:border-indigo-500 text-sm outline-none"
+                                            placeholder="Search name or email..."
+                                            className="w-full pl-11 pr-4 py-2.5 rounded-xl border-[3px] border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold focus:ring-0 focus:border-[#6366f1] transition-colors"
                                             onChange={(e) => setFilterSearch(e.target.value)}
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                            <div className="overflow-x-auto rounded-2xl border-[3px] border-slate-200 dark:border-slate-700 cartoon-border bg-white dark:bg-slate-800">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b-[3px] border-slate-200 dark:border-slate-700">
                                         <tr>
-                                            <th className="p-4 font-medium">Student</th>
-                                            <th className="p-4 font-medium">Class</th>
-                                            <th className="p-4 font-medium">Level</th>
-                                            <th className="p-4 font-medium">
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Student</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Class</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 pl-6">Level</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">
                                                 {filterSubject ? `${filterSubject} XP` : 'Total XP'}
                                             </th>
-                                            <th className="p-4 font-medium text-right">Actions</th>
+                                            <th className="p-5 font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="text-sm divide-y divide-slate-100">
+                                    <tbody className="divide-y-[3px] divide-slate-100 dark:divide-slate-700/50">
                                         {getFilteredStudents().map(student => (
-                                            <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
-                                                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${student.avatar || student.name}`} alt="avatar" />
+                                            <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                                <td className="p-5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 overflow-hidden border-[3px] border-slate-200 dark:border-slate-600 cartoon-border shrink-0 text-3xl flex items-center justify-center">
+                                                            {student.avatar || '🎓'}
                                                         </div>
                                                         <div>
-                                                            <div className="font-medium text-slate-900">{student.name}</div>
-                                                            <div className="text-xs text-slate-500">{student.email}</div>
+                                                            <div className="font-bold text-slate-900 dark:text-slate-100 text-base">{student.name}</div>
+                                                            <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">{student.email}</div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-slate-600">
-                                                    <span className="bg-slate-100 px-2 py-1 rounded text-xs font-bold text-slate-700">
+                                                <td className="p-5">
+                                                    <span className="bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">
                                                         Class {student.classLevel || 'N/A'}
                                                     </span>
                                                 </td>
-                                                <td className="p-4">
-                                                    <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">
-                                                        Lvl {student.level || 1}
-                                                    </span>
+                                                <td className="p-5">
+                                                    <div className="inline-flex items-center bg-[#f59e0b] border-b-4 border-[#b45309] rounded-full px-3 py-1 shadow-sm pop-shadow">
+                                                        <Trophy className="w-4 h-4 text-white fill-white mr-1.5 drop-shadow-sm" />
+                                                        <span className="text-white font-black text-sm drop-shadow-sm leading-none">
+                                                            {student.level || 1}
+                                                        </span>
+                                                    </div>
                                                 </td>
-                                                <td className="p-4 font-bold text-indigo-600">
-                                                    {student.xp || 0} XP
+                                                <td className="p-5 font-black text-[#6366f1] dark:text-[#818cf8] text-lg lg:text-xl">
+                                                    {student.xp || 0} <span className="text-xs font-bold text-slate-400">XP</span>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="p-5 text-right">
                                                     <button
                                                         onClick={() => setViewingStudent(student)}
-                                                        className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center justify-end gap-1 ml-auto"
+                                                        className="bg-[#6366f1] text-white hover:bg-[#4f46e5] font-bold text-sm px-4 py-2.5 rounded-xl border-b-[3px] border-[#4338ca] active:translate-y-1 active:border-b-0 transition-all flex items-center justify-end gap-2 ml-auto shadow-sm"
                                                     >
-                                                        <BarChart2 className="w-4 h-4" />
+                                                        <Activity className="w-4 h-4" />
                                                         Stats
                                                     </button>
                                                 </td>
@@ -398,7 +520,7 @@ const AdminDashboard = () => {
                                         ))}
                                         {getFilteredStudents().length === 0 && (
                                             <tr>
-                                                <td colspan="5" className="p-8 text-center text-slate-400 italic">
+                                                <td colSpan="5" className="p-12 text-center text-slate-400 dark:text-slate-500 font-bold text-lg bg-slate-50 dark:bg-slate-900/50">
                                                     No students found matching filters.
                                                 </td>
                                             </tr>
@@ -414,96 +536,138 @@ const AdminDashboard = () => {
             {/* MODALS */}
 
             {/* Assign Subject Modal */}
-            {assigningTeacher && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h3 className="font-bold text-slate-800">Assign Subjects</h3>
-                            <button onClick={() => setAssigningTeacher(null)} className="text-slate-400 hover:text-slate-600">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-4 max-h-[60vh] overflow-y-auto">
-                            <p className="text-sm text-slate-600 mb-4">Select subjects for <span className="font-bold text-slate-900">{assigningTeacher.name}</span>:</p>
-                            <div className="space-y-2">
+            <AnimatePresence>
+                {assigningTeacher && (
+                    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden cartoon-border pop-shadow border-[4px] border-slate-200 dark:border-slate-700"
+                        >
+                            <div className="p-6 border-b-[3px] border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+                                <div>
+                                    <h3 className="text-xl font-display font-black text-slate-800 dark:text-white">Assign Subjects</h3>
+                                    <p className="text-sm font-bold text-slate-500 mt-1">{assigningTeacher.name}</p>
+                                </div>
+                                <button onClick={() => setAssigningTeacher(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-slate-200 dark:bg-slate-700 p-2 rounded-xl transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="p-6 max-h-[50vh] overflow-y-auto space-y-3 bg-white dark:bg-slate-800">
                                 {subjects.map(subject => {
-                                    const isAssigned = assigningTeacher.assignedSubjects?.includes(subject.id);
+                                    const isAssigned = assigningTeacher.assignedSubjects?.some(
+                                        s => (s.subjectId || s) === subject.id
+                                    );
                                     return (
                                         <div
                                             key={subject.id}
                                             onClick={() => toggleSubjectAssignment(assigningTeacher.id, subject.id, isAssigned)}
-                                            className={`flex items-center p-3 rounded-lg cursor-pointer border transition-all ${isAssigned
-                                                ? 'bg-indigo-50 border-indigo-200'
-                                                : 'bg-white border-slate-200 hover:border-indigo-300'
+                                            className={`flex items-center p-4 rounded-2xl cursor-pointer border-[3px] transition-all cartoon-border ${isAssigned
+                                                ? 'bg-[#10b981]/10 border-[#10b981] pop-shadow'
+                                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                                 }`}
                                         >
-                                            <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${isAssigned ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center mr-4 transition-colors ${isAssigned ? 'bg-[#10b981] border-[#059669]' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
                                                 }`}>
-                                                {isAssigned && <Users className="w-3 h-3 text-white" />}
+                                                {isAssigned && <Check className="w-4 h-4 text-white font-bold" strokeWidth={3} />}
                                             </div>
-                                            <span className={`font-medium ${isAssigned ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                                {subject.name}
-                                            </span>
-                                            <span className="ml-auto text-xs text-slate-400 uppercase tracking-wider">
-                                                {subject.classLevel ? `Class ${subject.classLevel}` : ''}
-                                            </span>
+                                            <div>
+                                                <span className={`block font-bold text-lg leading-tight ${isAssigned ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                    {subject.title}
+                                                </span>
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 block">
+                                                    {subject.class ? `Class ${subject.class}` : `Class ${subject.classLevel || 'N/A'}`}
+                                                </span>
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
-                        </div>
-                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                            <button onClick={() => setAssigningTeacher(null)} className="btn-primary">Done</button>
-                        </div>
+                            <div className="p-6 border-t-[3px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-end">
+                                <button onClick={() => setAssigningTeacher(null)} className="bg-[#6366f1] text-white px-8 py-3 rounded-xl font-bold border-b-4 border-[#4f46e5] active:border-b-0 active:translate-y-1 transition-all shadow-sm w-full">
+                                    Done
+                                </button>
+                            </div>
+                        </motion.div>
                     </div>
-                </div>
-            )}
+                )}
+            </AnimatePresence>
 
             {/* View Student Details Modal */}
-            {viewingStudent && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
-                            <div className="flex items-center gap-4">
-                                <div className="text-4xl">{viewingStudent.avatar || '🎓'}</div>
-                                <div>
-                                    <h3 className="font-bold text-xl">{viewingStudent.name}</h3>
-                                    <p className="text-indigo-200 text-sm">{viewingStudent.email}</p>
+            <AnimatePresence>
+                {viewingStudent && (
+                    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden cartoon-border pop-shadow border-[4px] border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]"
+                        >
+                            <div className="p-8 border-b-[3px] border-[#4f46e5] flex justify-between items-center bg-[#6366f1] text-white relative overflow-hidden">
+                                {/* Decorative background elements */}
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#c084fc]/30 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
+
+                                <div className="flex items-center gap-6 relative z-10">
+                                    <div className="text-5xl bg-white/20 p-4 rounded-2xl border-2 border-white/30 shadow-inner">
+                                        {viewingStudent.avatar || '🎓'}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-display font-black text-3xl drop-shadow-sm">{viewingStudent.name}</h3>
+                                        <p className="text-indigo-100 font-bold mt-1 bg-black/20 px-3 py-1 rounded-lg inline-block text-sm">{viewingStudent.email}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setViewingStudent(null)} className="text-white/80 hover:text-white bg-black/20 hover:bg-black/30 p-2 rounded-xl transition-colors relative z-10">
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-3 bg-slate-50 dark:bg-slate-900 border-b-[3px] border-slate-200 dark:border-slate-700 divide-x-[3px] divide-slate-200 dark:divide-slate-700">
+                                <div className="p-6 text-center flex flex-col items-center justify-center">
+                                    <Activity className="w-8 h-8 text-[#6366f1] mb-2" />
+                                    <div className="text-3xl font-display font-black text-[#6366f1] drop-shadow-sm leading-none mb-1">{viewingStudent.xp || 0}</div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total XP</div>
+                                </div>
+                                <div className="p-6 text-center flex flex-col items-center justify-center">
+                                    <Trophy className="w-8 h-8 text-[#f59e0b] mb-2" />
+                                    <div className="text-3xl font-display font-black text-[#f59e0b] drop-shadow-sm leading-none mb-1">{viewingStudent.level || 1}</div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Level</div>
+                                </div>
+                                <div className="p-6 text-center flex flex-col items-center justify-center">
+                                    <div className="text-3xl font-display font-black text-[#10b981] drop-shadow-sm leading-none mb-1 flex items-center justify-center gap-1">
+                                        {viewingStudent.streak || 0} <span className="text-2xl">🔥</span>
+                                    </div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-3">Current Streak</div>
                                 </div>
                             </div>
-                            <button onClick={() => setViewingStudent(null)} className="text-white/80 hover:text-white">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
 
-                        <div className="p-6 grid grid-cols-3 gap-4 bg-indigo-50 border-b border-indigo-100">
-                            <div className="text-center">
-                                <div className="text-2xl font-bold text-indigo-700">{viewingStudent.xp || 0}</div>
-                                <div className="text-xs text-indigo-500 font-bold uppercase tracking-wide">Total XP</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-2xl font-bold text-amber-600">{viewingStudent.level || 1}</div>
-                                <div className="text-xs text-amber-600 font-bold uppercase tracking-wide">Level</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-2xl font-bold text-emerald-600">{viewingStudent.streak || 0} 🔥</div>
-                                <div className="text-xs text-emerald-600 font-bold uppercase tracking-wide">Current Streak</div>
-                            </div>
-                        </div>
+                            <div className="p-8 flex-1 overflow-y-auto bg-white dark:bg-slate-800">
+                                <h4 className="font-display font-black text-xl text-slate-800 dark:text-white mb-6 flex items-center gap-3">
+                                    <BookOpen className="w-6 h-6 text-[#14b8a6]" />
+                                    Recent Activity
+                                </h4>
 
-                        <div className="p-6 max-h-[50vh] overflow-y-auto">
-                            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                <BookOpen className="w-4 h-4 text-indigo-600" />
-                                Recent Activity
-                            </h4>
-                            {/* This would be populated by real progress data in a full implementation */}
-                            <div className="text-center py-8 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                                Detailed activity logs coming soon via Progress API integration.
+                                {/* Empty state for activity */}
+                                <div className="text-center py-12 px-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-[3px] border-dashed border-slate-200 dark:border-slate-700">
+                                    <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-4 rotate-12">
+                                        <BookOpen className="w-8 h-8" />
+                                    </div>
+                                    <h3 className="font-bold text-slate-700 dark:text-slate-300 text-lg mb-2">No activity recorded yet</h3>
+                                    <p className="text-sm font-medium text-slate-500 max-w-[250px] mx-auto leading-relaxed">
+                                        Detailed activity logs will appear here once the student completes lessons and quizzes.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                            <div className="p-6 border-t-[3px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-end">
+                                <button onClick={() => setViewingStudent(null)} className="bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 text-slate-700 px-8 py-3 rounded-xl font-bold border-b-4 border-slate-300 dark:border-slate-800 active:border-b-0 active:translate-y-1 transition-all">
+                                    Close
+                                </button>
+                            </div>
+                        </motion.div>
                     </div>
-                </div>
-            )}
+                )}
+            </AnimatePresence>
         </div>
     );
 };

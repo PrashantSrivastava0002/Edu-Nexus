@@ -7,8 +7,19 @@ import User from '../models/User.js';
 // @access  Private
 export const getSubjects = async (req, res) => {
     try {
-        const subjects = await Subject.find({ isActive: true }).sort({ createdAt: 1 });
-        
+        let query = { isActive: true };
+
+        // 1. Filter by Class for Students
+        if (req.user && req.user.role === 'student') {
+            const userClass = req.user.classLevel; // Number usually
+            if (userClass) {
+                // Subject.classes is [String], so cast userClass to String
+                query.classes = String(userClass);
+            }
+        }
+
+        const subjects = await Subject.find(query).sort({ createdAt: 1 });
+
         res.json({
             success: true,
             count: subjects.length,
@@ -28,7 +39,7 @@ export const getSubjects = async (req, res) => {
 export const getSubject = async (req, res) => {
     try {
         const subject = await Subject.findOne({ id: req.params.id, isActive: true });
-        
+
         if (!subject) {
             return res.status(404).json({
                 success: false,
@@ -37,9 +48,9 @@ export const getSubject = async (req, res) => {
         }
 
         // Get all chapters for this subject
-        const chapters = await Chapter.find({ 
-            subjectId: req.params.id, 
-            isPublished: true 
+        const chapters = await Chapter.find({
+            subjectId: req.params.id,
+            isPublished: true
         }).sort({ order: 1 });
 
         res.json({
@@ -211,91 +222,5 @@ export const unassignTeacher = async (req, res) => {
     }
 };
 
-// @desc    Create new subject
-// @route   POST /api/subjects
-// @access  Private (Teacher/Admin)
-export const createSubject = async (req, res) => {
-    try {
-        const { id, title, description, icon, class: className } = req.body;
 
-        const subject = await Subject.create({
-            id,
-            title,
-            description,
-            icon,
-            class: className,
-            createdBy: req.user._id
-        });
-
-        res.status(201).json({
-            success: true,
-            data: subject
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-
-// @desc    Update subject
-// @route   PUT /api/subjects/:id
-// @access  Private (Teacher/Admin)
-export const updateSubject = async (req, res) => {
-    try {
-        const subject = await Subject.findOneAndUpdate(
-            { id: req.params.id },
-            req.body,
-            { new: true, runValidators: true }
-        );
-
-        if (!subject) {
-            return res.status(404).json({
-                success: false,
-                message: 'Subject not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: subject
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-
-// @desc    Delete subject
-// @route   DELETE /api/subjects/:id
-// @access  Private (Admin)
-export const deleteSubject = async (req, res) => {
-    try {
-        const subject = await Subject.findOneAndUpdate(
-            { id: req.params.id },
-            { isActive: false },
-            { new: true }
-        );
-
-        if (!subject) {
-            return res.status(404).json({
-                success: false,
-                message: 'Subject not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: 'Subject deleted successfully'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
 

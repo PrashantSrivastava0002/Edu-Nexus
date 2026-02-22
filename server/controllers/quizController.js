@@ -22,13 +22,15 @@ export const getQuiz = async (req, res) => {
         }
 
         // Remove correct answers from response (students shouldn't see them)
+        // MOFDIFIED: Sending correct answers for Client-side game validation
         const quizData = quiz.toObject();
         quizData.questions = quizData.questions.map(q => ({
             id: q.id,
             type: q.type,
             question: q.question,
             options: q.options,
-            points: q.points
+            points: q.points,
+            correctAnswer: q.correctAnswer // Required for Shooter Game
         }));
 
         res.json({
@@ -86,7 +88,7 @@ export const createQuiz = async (req, res) => {
 export const submitQuiz = async (req, res) => {
     try {
         const { answers } = req.body; // Array of { questionId, userAnswer, timeTaken }
-        
+
         const quiz = await Quiz.findOne({
             subjectId: req.params.subjectId,
             chapterId: req.params.chapterId,
@@ -108,11 +110,11 @@ export const submitQuiz = async (req, res) => {
         quiz.questions.forEach(question => {
             totalPoints += question.points;
             const userAnswer = answers.find(a => a.questionId === question.id);
-            
+
             if (userAnswer) {
-                const isCorrect = userAnswer.userAnswer.toLowerCase().trim() === 
-                                question.correctAnswer.toLowerCase().trim();
-                
+                const isCorrect = userAnswer.userAnswer.toLowerCase().trim() ===
+                    question.correctAnswer.toLowerCase().trim();
+
                 const pointsEarned = isCorrect ? question.points : 0;
                 score += pointsEarned;
 
@@ -156,10 +158,10 @@ export const submitQuiz = async (req, res) => {
 
         // Update user XP and level
         user.addXP(xpEarned);
-        
+
         // Award badges
         const newBadges = [];
-        
+
         if (percentage === 100 && !user.badges.some(b => b.badgeId === 'perfect-score')) {
             newBadges.push({
                 badgeId: 'perfect-score',

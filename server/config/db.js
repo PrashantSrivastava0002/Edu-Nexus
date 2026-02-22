@@ -8,12 +8,13 @@ const connectDB = async () => {
         });
 
         console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+        return conn;
     } catch (error) {
         console.error(`❌ MongoDB Connection Error: ${error.message}`);
-        console.warn('⚠️  Starting server without database. Using mock data only.');
-        // Don't exit - allow server to run with mock database
+        console.error('💡 Hint: Check if your IP address is whitelisted in MongoDB Atlas Network Access.');
+        // Throw error to be handled by the caller (server.js)
+        throw error;
     }
 };
 
 export default connectDB;
-

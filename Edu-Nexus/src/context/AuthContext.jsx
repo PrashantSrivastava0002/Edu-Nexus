@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }) => {
     const updateProfile = async (data) => {
         try {
             const response = await userAPI.updateProfile(data);
-            const updatedUser = response.data;
+            const updatedUser = response.data.data;
 
             setUser(updatedUser);
             localStorage.setItem('user', JSON.stringify(updatedUser));

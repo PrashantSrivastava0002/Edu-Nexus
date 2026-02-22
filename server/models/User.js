@@ -15,6 +15,24 @@ const userSchema = new mongoose.Schema({
         trim: true,
         match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
     },
+    school: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    classLevel: {
+        type: Number,
+        default: null
+    },
+    age: {
+        type: Number,
+        default: null
+    },
+    stream: {
+        type: String,
+        enum: ['Science', 'Commerce', 'Arts', null],
+        default: null
+    },
     password: {
         type: String,
         required: [true, 'Please provide a password'],
@@ -29,6 +47,7 @@ const userSchema = new mongoose.Schema({
     // Teacher-specific fields
     assignedSubjects: [{
         subjectId: String,
+        classLevel: String,
         assignedAt: {
             type: Date,
             default: Date.now
@@ -48,6 +67,9 @@ const userSchema = new mongoose.Schema({
         default: 0
     },
     lastLoginDate: {
+        type: Date
+    },
+    lastActiveAt: {
         type: Date
     },
     badges: [{
@@ -70,13 +92,14 @@ const userSchema = new mongoose.Schema({
     avatar: {
         type: String,
         default: ''
-    }
+    },
+
 }, {
     timestamps: true
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) {
         next();
     }
@@ -85,18 +108,18 @@ userSchema.pre('save', async function(next) {
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(enteredPassword) {
+userSchema.methods.comparePassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
 // Calculate level from XP
-userSchema.methods.calculateLevel = function() {
+userSchema.methods.calculateLevel = function () {
     this.level = Math.floor(this.xp / 1000) + 1;
     return this.level;
 };
 
 // Add XP and update level
-userSchema.methods.addXP = function(xpAmount) {
+userSchema.methods.addXP = function (xpAmount) {
     this.xp += xpAmount;
     this.calculateLevel();
     return this.xp;

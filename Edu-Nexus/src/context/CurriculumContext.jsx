@@ -19,15 +19,26 @@ export const CurriculumProvider = ({ children }) => {
                 const response = await subjectAPI.getAll();
                 const subjects = response.data.data;
 
-                // Fetch chapters for each subject
+                // Fetch chapters for each subject concurrently
+                const chaptersResults = await Promise.all(
+                    subjects.map(subject =>
+                        chapterAPI.getBySubject(subject.id)
+                            .then(res => ({ id: subject.id, chapters: res.data.data }))
+                            .catch(err => {
+                                console.error(`Failed to fetch chapters for subject ${subject.id}`, err);
+                                return { id: subject.id, chapters: [] }; // Handle individual failure gracefully
+                            })
+                    )
+                );
+
                 const curriculumData = {};
-                for (const subject of subjects) {
-                    const chaptersResponse = await chapterAPI.getBySubject(subject.id);
+                subjects.forEach(subject => {
+                    const subjectChapters = chaptersResults.find(r => r.id === subject.id)?.chapters || [];
                     curriculumData[subject.id] = {
                         ...subject,
-                        chapters: chaptersResponse.data.data
+                        chapters: subjectChapters
                     };
-                }
+                });
 
                 setCurriculum(curriculumData);
             } catch (error) {

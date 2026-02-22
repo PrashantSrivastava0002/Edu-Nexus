@@ -6,9 +6,14 @@ import User from '../models/User.js';
 export const getLeaderboard = async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 50;
+        const { school, classLevel } = req.query;
 
-        const users = await User.find({ role: 'student' })
-            .select('name xp level streak badges')
+        const query = { role: 'student' };
+        if (school) query.school = new RegExp(school, 'i'); // Case-insensitive match
+        if (classLevel) query.classLevel = parseInt(classLevel);
+
+        const users = await User.find(query)
+            .select('name xp level streak badges school classLevel avatar')
             .sort({ xp: -1 })
             .limit(limit);
 
@@ -19,6 +24,9 @@ export const getLeaderboard = async (req, res) => {
             xp: user.xp,
             level: user.level,
             streak: user.streak,
+            school: user.school,
+            classLevel: user.classLevel,
+            avatar: user.avatar,
             badgeCount: user.badges.length
         }));
 

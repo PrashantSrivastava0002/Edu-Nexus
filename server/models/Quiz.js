@@ -20,6 +20,11 @@ const quizSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    gameType: {
+        type: String,
+        enum: ['shooter', 'memory', 'classic'],
+        default: 'shooter'
+    },
     questions: [{
         id: Number,
         type: {

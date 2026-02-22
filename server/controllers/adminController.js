@@ -196,13 +196,21 @@ export const getDashboardStats = async (req, res) => {
         const totalSubjects = await Subject.countDocuments();
         const totalQuizAttempts = await QuizAttempt.countDocuments();
 
+        // Count active students (active in last 1 minute)
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+        const activeStudents = await User.countDocuments({
+            role: 'student',
+            lastActiveAt: { $gte: oneMinuteAgo }
+        });
+
         res.json({
             success: true,
             data: {
                 totalStudents,
                 totalTeachers,
                 totalSubjects,
-                totalQuizAttempts
+                totalQuizAttempts,
+                activeStudents
             }
         });
     } catch (error) {

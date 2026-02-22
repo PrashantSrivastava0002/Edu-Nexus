@@ -5,9 +5,9 @@ import Chapter from '../models/Chapter.js';
 // @access  Private
 export const getChaptersBySubject = async (req, res) => {
     try {
-        const chapters = await Chapter.find({ 
+        const chapters = await Chapter.find({
             subjectId: req.params.subjectId,
-            isPublished: true 
+            isPublished: true
         }).sort({ order: 1 });
 
         res.json({
@@ -28,11 +28,13 @@ export const getChaptersBySubject = async (req, res) => {
 // @access  Private
 export const getChapter = async (req, res) => {
     try {
+        console.log(`[DEBUG] getChapter: subjectId=${req.params.subjectId}, chapterId=${req.params.chapterId}`);
         const chapter = await Chapter.findOne({
             subjectId: req.params.subjectId,
             id: req.params.chapterId,
             isPublished: true
         });
+        console.log(`[DEBUG] Found chapter: ${chapter ? chapter.id : 'null'}`);
 
         if (!chapter) {
             return res.status(404).json({
@@ -81,9 +83,9 @@ export const createChapter = async (req, res) => {
 export const updateChapter = async (req, res) => {
     try {
         const chapter = await Chapter.findOneAndUpdate(
-            { 
+            {
                 subjectId: req.params.subjectId,
-                id: req.params.chapterId 
+                id: req.params.chapterId
             },
             req.body,
             { new: true, runValidators: true }
@@ -116,11 +118,11 @@ export const addVideoToChapter = async (req, res) => {
         const { videoUrl } = req.body;
 
         const chapter = await Chapter.findOneAndUpdate(
-            { 
+            {
                 subjectId: req.params.subjectId,
-                id: req.params.chapterId 
+                id: req.params.chapterId
             },
-            { 
+            {
                 'content.videoUrl': videoUrl,
                 'content.type': 'video'
             },
@@ -154,14 +156,14 @@ export const addAttachment = async (req, res) => {
         const { name, url, type } = req.body;
 
         const chapter = await Chapter.findOneAndUpdate(
-            { 
+            {
                 subjectId: req.params.subjectId,
-                id: req.params.chapterId 
+                id: req.params.chapterId
             },
-            { 
-                $push: { 
-                    attachments: { name, url, type } 
-                } 
+            {
+                $push: {
+                    attachments: { name, url, type }
+                }
             },
             { new: true }
         );

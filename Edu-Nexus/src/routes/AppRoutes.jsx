@@ -10,6 +10,8 @@ import ProtectedRoute from './ProtectedRoute';
 
 import SubjectDetail from '../pages/student/SubjectDetail';
 import LearningView from '../pages/student/LearningView';
+import ChapterLearning from '../pages/student/ChapterLearning';
+import Leaderboard from '../pages/Leaderboard';
 
 const AppRoutes = () => {
     return (
@@ -25,6 +27,15 @@ const AppRoutes = () => {
                 element={
                     <ProtectedRoute allowedRoles={['student']}>
                         <StudentDashboard />
+                    </ProtectedRoute>
+                }
+            />
+
+            <Route
+                path="/leaderboard"
+                element={
+                    <ProtectedRoute allowedRoles={['student']}>
+                        <Leaderboard />
                     </ProtectedRoute>
                 }
             />
@@ -60,7 +71,7 @@ const AppRoutes = () => {
                 path="/learn/:subjectId/:chapterId"
                 element={
                     <ProtectedRoute allowedRoles={['student']}>
-                        <LearningView />
+                        <ChapterLearning />
                     </ProtectedRoute>
                 }
             />
