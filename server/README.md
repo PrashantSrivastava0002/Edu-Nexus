@@ -97,7 +97,7 @@ Server will run on `http://localhost:5001`
 After seeding, use these credentials:
 
 - **Admin**
-  - Email: `admin@edu.nexus`
+  - Email: `admin@demo.com`
   - Password: `password123`
 
 - **Teacher**
